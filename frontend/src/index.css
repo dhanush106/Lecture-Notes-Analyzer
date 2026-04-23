@@ -2,118 +2,81 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --clay-bg: #f5f7fa;
-  --clay-bg-dark: #0f1115;
-  --clay-primary: #6366f1;
-  --clay-primary-glow: rgba(99, 102, 241, 0.2);
-  --clay-secondary: #8b5cf6;
-  --clay-accent: #06b6d4;
-  --clay-error: #ef4444;
-  --clay-card-light: #f5f7fa;
-  --clay-card-dark: #1a1d23;
-}
-
 @layer base {
   body {
-    @apply bg-[var(--clay-bg)] text-slate-800 dark:bg-[var(--clay-bg-dark)] dark:text-slate-100;
-    font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+    @apply bg-[#0B0F19] text-slate-200;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
 
 @layer components {
-  .clay-card {
-    @apply bg-[var(--clay-card-light)] dark:bg-[var(--clay-card-dark)] rounded-[32px] border-none transition-all duration-500 p-8;
-    box-shadow: 
-      12px 12px 24px rgba(166, 180, 200, 0.4),
-      -12px -12px 24px rgba(255, 255, 255, 1),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.3);
+  /* Cards */
+  .saas-card {
+    @apply bg-[#111827] rounded-2xl border border-white/[0.05] shadow-xl p-6 transition-all duration-300;
   }
   
-  .dark .clay-card {
-    box-shadow: 
-      10px 10px 20px rgba(0, 0, 0, 0.5),
-      -5px -5px 15px rgba(255, 255, 255, 0.02),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.05);
+  .saas-card:hover {
+    @apply shadow-2xl border-white/[0.1] -translate-y-1;
   }
 
-  .clay-card-inner {
-    @apply rounded-[24px] bg-[var(--clay-bg)] dark:bg-[var(--clay-bg-dark)];
-    box-shadow: 
-      inset 6px 6px 12px rgba(166, 180, 200, 0.3),
-      inset -6px -6px 12px rgba(255, 255, 255, 0.8);
+  /* Buttons */
+  .saas-btn-primary {
+    @apply relative inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-white transition-all duration-300 overflow-hidden;
+    background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+    box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.39);
   }
 
-  .dark .clay-card-inner {
-    box-shadow: 
-      inset 8px 8px 16px rgba(0, 0, 0, 0.4),
-      inset -4px -4px 10px rgba(255, 255, 255, 0.01);
+  .saas-btn-primary:hover {
+    @apply shadow-[0_6px_20px_rgba(79,70,229,0.23)_,-0_6px_20px_rgba(59,130,246,0.23)] -translate-y-0.5;
   }
 
-  .clay-btn-primary {
-    @apply bg-[var(--clay-primary)] text-white px-8 py-3.5 rounded-[24px] font-bold 
-           transition-all duration-300 transform hover:-translate-y-1 active:scale-95 flex items-center justify-center;
-    box-shadow: 
-      8px 8px 16px var(--clay-primary-glow),
-      -4px -4px 12px rgba(255, 255, 255, 0.5),
-      inset 2px 2px 4px rgba(255, 255, 255, 0.3);
-  }
-  
-  .clay-btn-secondary {
-    @apply bg-white dark:bg-[#1a1d23] text-slate-700 dark:text-slate-200 px-8 py-3.5 rounded-[24px] font-bold 
-           transition-all duration-300 hover:shadow-xl transform hover:-translate-y-1;
-    box-shadow: 
-      8px 8px 16px rgba(166, 180, 200, 0.2),
-      -8px -8px 16px rgba(255, 255, 255, 0.8);
+  .saas-btn-primary:active {
+    @apply scale-[0.98] translate-y-0;
   }
 
-  .clay-input {
-    @apply w-full px-6 py-4 rounded-[20px] outline-none transition-all duration-300 
-           bg-[var(--clay-bg)] dark:bg-[var(--clay-bg-dark)] text-slate-800 dark:text-white border-none;
-    box-shadow:
-      inset 6px 6px 12px rgba(166, 180, 200, 0.3),
-      inset -6px -6px 12px rgba(255, 255, 255, 0.8);
-  }
-  
-  .dark .clay-input {
-    box-shadow:
-      inset 8px 8px 16px rgba(0, 0, 0, 0.4),
-      inset -4px -4px 10px rgba(255, 255, 255, 0.02);
+  .saas-btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-slate-300 bg-white/[0.03] border border-white/[0.05] hover:bg-white/[0.08] hover:text-white transition-all duration-300 active:scale-[0.98];
   }
 
-  .clay-input:focus {
-    box-shadow:
-      inset 8px 8px 16px rgba(166, 180, 200, 0.4),
-      inset -8px -8px 16px rgba(255, 255, 255, 0.9),
-      0 0 0 3px var(--clay-primary-glow);
+  /* Inputs */
+  .saas-input {
+    @apply w-full px-4 py-3 bg-[#0B0F19] border border-white/[0.1] rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all;
   }
 
-  .btn-primary { @apply clay-btn-primary; }
-  .btn-secondary { @apply clay-btn-secondary; }
-  .card { @apply clay-card; }
-  .input-field { @apply clay-input; }
-}
+  /* Glass Panels */
+  .glass-panel {
+    @apply bg-[#111827]/80 backdrop-blur-md border border-white/[0.05] shadow-2xl;
+  }
 
-.clay-badge {
-  @apply px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest;
-  box-shadow: 4px 4px 8px rgba(0,0,0,0.03), -4px -4px 8px rgba(255,255,255,0.8);
+  /* Legacy overrides to prevent app breakage before full migration */
+  .clay-card { @apply saas-card !p-8; }
+  .clay-card-inner { @apply bg-[#0B0F19] rounded-xl border border-white/[0.03] shadow-inner; }
+  .clay-btn-primary { @apply saas-btn-primary; }
+  .clay-btn-secondary { @apply saas-btn-secondary; }
+  .clay-input { @apply saas-input; }
+  .btn-primary { @apply saas-btn-primary; }
+  .btn-secondary { @apply saas-btn-secondary; }
+  .card { @apply saas-card; }
+  .input-field { @apply saas-input; }
 }
 
 .gradient-text {
-  @apply bg-gradient-to-br from-indigo-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent;
+  @apply bg-gradient-to-br from-indigo-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent;
 }
 
-.highlight-match {
-  @apply bg-indigo-500 text-white px-1 rounded-sm font-bold shadow-sm;
+.saas-badge {
+  @apply px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/20;
 }
 
-/* Custom Scrollbar */
+.clay-badge { @apply saas-badge; }
+
+/* Custom Scrollbar for Dark Theme */
 ::-webkit-scrollbar {
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  @apply bg-[#0B0F19];
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-200 dark:bg-slate-800 rounded-full hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors;
+  @apply bg-slate-800 rounded-full hover:bg-slate-700 transition-colors;
 }

@@ -12,7 +12,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 export default function NotesPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { notes, loading, analyzing } = useSelector(state => state.notes);
+  const { notes, loading } = useSelector(state => state.notes);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -30,67 +30,73 @@ export default function NotesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen">
       <Navbar />
       <Sidebar />
       
-      <main className="pt-24 pb-12 px-4 sm:px-6 lg:px-8 lg:pl-72">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-                My Notes
+      <main className="pt-28 pb-12 px-4 sm:px-6 lg:px-8 lg:pl-72 relative z-10">
+        <div className="max-w-7xl mx-auto space-y-8">
+          
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+              <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight">
+                My Notes Library
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
-                {notes.length} notes in total
+              <p className="text-slate-400 mt-3 text-lg font-medium">
+                {notes.length} documents analyzed and ready for review
               </p>
-            </div>
-            <Link
-              to="/dashboard/upload"
-              className="flex items-center gap-2 btn-primary"
-            >
-              <Plus size={18} />
-              Upload
-            </Link>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
+              <Link
+                to="/dashboard/upload"
+                className="saas-btn-primary group"
+              >
+                <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+                <span>Upload New</span>
+              </Link>
+            </motion.div>
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-20">
-              <LoadingSpinner text="Loading notes..." />
+            <div className="flex justify-center py-32">
+              <LoadingSpinner text="Loading your library..." />
             </div>
           ) : notes.length > 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="space-y-4"
+              className="grid gap-6 md:grid-cols-2 xl:grid-cols-3"
             >
-              {notes.map(note => (
-                <NoteCard
-                  key={note._id}
-                  note={note}
-                  onClick={(id) => navigate(`/dashboard/notes/${id}`)}
-                  onAnalyze={handleAnalyze}
-                  onDelete={handleDelete}
-                />
+              {notes.map((note, i) => (
+                <motion.div key={note._id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                  <NoteCard
+                    note={note}
+                    onClick={(id) => navigate(`/dashboard/notes/${id}`)}
+                    onAnalyze={handleAnalyze}
+                    onDelete={handleDelete}
+                  />
+                </motion.div>
               ))}
             </motion.div>
           ) : (
-            <div className="card text-center py-16">
-              <BookOpen size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                No notes yet
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-panel text-center py-24 rounded-3xl">
+              <div className="w-24 h-24 bg-indigo-500/10 border border-indigo-500/20 rounded-[24px] flex items-center justify-center mx-auto mb-6 text-indigo-400">
+                <BookOpen size={40} strokeWidth={2.5} />
+              </div>
+              <h3 className="text-2xl font-black text-white tracking-tight mb-3">
+                Library is empty
               </h3>
-              <p className="text-gray-500 dark:text-gray-400 mb-4">
-                Upload your first lecture note to get started
+              <p className="text-slate-400 font-medium max-w-sm mx-auto mb-8 text-lg">
+                You haven't uploaded any lecture notes yet. Add your first PDF to generate AI study materials.
               </p>
               <Link
                 to="/dashboard/upload"
-                className="inline-flex items-center gap-2 btn-primary"
+                className="saas-btn-primary"
               >
-                <Plus size={18} />
-                Upload Notes
+                <Plus size={20} />
+                <span>Upload Note</span>
               </Link>
-            </div>
+            </motion.div>
           )}
         </div>
       </main>
