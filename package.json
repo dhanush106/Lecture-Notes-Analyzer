@@ -1,0 +1,16 @@
+{
+  "name": "lecture-notes-analyzer",
+  "version": "1.0.0",
+  "description": "Full-stack MERN application for analyzing lecture notes with NLP",
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:nlp": "cd nlp_service && python -m uvicorn main:app --reload --port 8000",
+    "dev:all": "npm run dev:backend & npm run dev:frontend & npm run dev:nlp"
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ]
+}
