@@ -1,153 +1,195 @@
-import torch
+"""
+services/question_generator.py
+--------------------------------
+Production-grade question generation with:
+- GPU acceleration via device_manager
+- FP16 on GPU
+- torch.no_grad() inference
+- Mixed question types: MCQ, Viva, Short Answer
+"""
 import re
+import time
+import random
+import torch
 import logging
-from typing import List
-from transformers import pipeline, T5Tokenizer, T5ForConditionalGeneration
+from typing import List, Optional
+from transformers import T5Tokenizer, T5ForConditionalGeneration
 from config.settings import ModelConfig
+from utils.device import device_manager
 
 logger = logging.getLogger(__name__)
 
 
 class QuestionService:
     def __init__(self):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.config = ModelConfig
-        
-        logger.info(f"Loading T5 model: {self.config.QUESTION_MODEL}")
-        model_name = self.config.QUESTION_MODEL
-        self.tokenizer = T5Tokenizer.from_pretrained(model_name)
-        self.model = T5ForConditionalGeneration.from_pretrained(model_name)
-        self.model.to(self.device)
-        logger.info("T5 model loaded")
-    
-    def _prepare_viva_prompt(self, context: str) -> str:
-        return f"Generate a deep conceptual viva question based on this context: {context}"
+        self._tokenizer = None
+        self._model = None
+        logger.info(f"QuestionService init — device: {device_manager.device_str}")
 
-    def _prepare_short_answer_prompt(self, context: str) -> str:
-        return f"Generate a short technical question based on this: {context}"
+    @property
+    def tokenizer(self) -> T5Tokenizer:
+        if self._tokenizer is None:
+            logger.info(f"Loading T5 tokenizer: {self.config.QUESTION_MODEL}")
+            self._tokenizer = T5Tokenizer.from_pretrained(self.config.QUESTION_MODEL)
+        return self._tokenizer
 
-    def _prepare_mcq_prompt(self, context: str) -> str:
-        return f"Generate a multiple choice question with 4 options and the correct answer based on: {context}"
+    @property
+    def model(self) -> T5ForConditionalGeneration:
+        if self._model is None:
+            logger.info(f"Loading T5 model: {self.config.QUESTION_MODEL} on {device_manager.device_str}")
+            t0 = time.time()
+            m = T5ForConditionalGeneration.from_pretrained(self.config.QUESTION_MODEL)
+            if device_manager.use_fp16:
+                m = m.half()  # FP16 for faster GPU inference
+            m = m.to(device_manager.torch_device)
+            self._model = m
+            logger.info(f"T5 model loaded in {time.time() - t0:.1f}s on {device_manager.device_str}")
+        return self._model
 
-    def generate_questions(self, text: str, max_questions: int = 5) -> List[dict]:
-        try:
-            tokenizer, model = self.tokenizer, self.model
-            
-            # Divide text into meaningful segments for different types of questions
-            sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if len(s.split()) > 8]
-            if not sentences:
-                return self._generate_template_questions(text, max_questions)
+    # ------------------------------------------------------------------
+    # Prompt builders
+    # ------------------------------------------------------------------
+    def _viva_prompt(self, ctx: str) -> str:
+        return f"Generate a deep conceptual viva question based on this context: {ctx}"
 
-            questions = []
-            
-            # Generate MCQs (50% of requests)
-            mcq_count = max(1, max_questions // 2)
-            for i in range(min(mcq_count, len(sentences))):
-                segment = sentences[i % len(sentences)]
-                q = self._generate_single_question(segment, "mcq")
-                if q: questions.append(q)
-            
-            # Generate Viva questions
-            viva_count = max(1, (max_questions - len(questions)) // 2)
-            for i in range(viva_count):
-                idx = (mcq_count + i) % len(sentences)
-                segment = sentences[idx]
-                q = self._generate_single_question(segment, "viva")
-                if q: questions.append(q)
+    def _short_prompt(self, ctx: str) -> str:
+        return f"Generate a short technical question based on this: {ctx}"
 
-            # Fill remaining with short answers
-            while len(questions) < max_questions and len(questions) < len(sentences):
-                idx = len(questions) % len(sentences)
-                segment = sentences[idx]
-                q = self._generate_single_question(segment, "short")
-                if q: questions.append(q)
-            
-            if len(questions) < max_questions:
-                questions.extend(self._generate_template_questions(text, max_questions - len(questions)))
+    def _mcq_prompt(self, ctx: str) -> str:
+        return f"Generate a multiple choice question with 4 options and the correct answer based on: {ctx}"
 
-            return questions[:max_questions]
-            
-        except Exception as e:
-            logger.error(f"Question generation pipeline failed: {e}")
-            return self._generate_template_questions(text, max_questions)
-
-    def _generate_single_question(self, context: str, q_type: str) -> dict:
+    # ------------------------------------------------------------------
+    # Core generation
+    # ------------------------------------------------------------------
+    def _generate_single(self, context: str, q_type: str) -> Optional[dict]:
         try:
             if q_type == "mcq":
-                prompt = self._prepare_mcq_prompt(context)
+                prompt = self._mcq_prompt(context)
             elif q_type == "viva":
-                prompt = self._prepare_viva_prompt(context)
+                prompt = self._viva_prompt(context)
             else:
-                prompt = self._prepare_short_answer_prompt(context)
+                prompt = self._short_prompt(context)
 
-            inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
-            outputs = self.model.generate(**inputs, max_length=128, num_beams=4, early_stopping=True)
+            inputs = self.tokenizer(
+                prompt,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=512,
+            ).to(device_manager.torch_device)
+
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_length=128,
+                    num_beams=self.config.NUM_BEAM,
+                    early_stopping=True,
+                )
+
             generated = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            
+
             if q_type == "mcq":
-                return self._parse_mcq(generated, context)
+                return self._build_mcq(generated, context)
             else:
                 return {
                     "type": q_type,
                     "question": generated,
-                    "answer": "Refer to section: " + context[:50] + "...",
-                    "difficulty": "hard" if q_type == "viva" else "medium"
+                    "answer": f"Refer to: {context[:60]}...",
+                    "difficulty": "hard" if q_type == "viva" else "medium",
                 }
         except Exception as e:
-            logger.warning(f"Single question generation failed ({q_type}): {e}")
+            logger.warning(f"Question generation failed ({q_type}): {e}")
             return None
 
-    def _parse_mcq(self, generated: str, context: str) -> dict:
-        # Simple heuristic to extract question and options if the model generates them in a specific format
-        # Or just use the generated text as question and synthesize options
-        if "?" in generated:
-            q_part = generated.split("?")[0] + "?"
-        else:
-            q_part = generated[:100]
-        
-        entities = self._extract_key_entities(context)
-        if not entities: entities = ["Answer A", "Answer B", "Answer C", "Answer D"]
-        
+    def _build_mcq(self, generated: str, context: str) -> dict:
+        q_part = (generated.split("?")[0] + "?") if "?" in generated else generated[:100]
+        entities = self._extract_entities(context)
+        if not entities:
+            entities = ["Concept A", "Concept B", "Concept C", "Correct Answer"]
+
         correct = entities[0]
-        options = [correct]
-        distractors = ["None of the above", "All of the above", "Irrelevant concept", "Opposite view"]
-        options.extend(distractors[:3])
-        
-        import random
+        distractors = ["None of the above", "All of the above", "Not applicable"]
+        options = [correct] + distractors[:3]
         random.shuffle(options)
-        
-        correct_index = options.index(correct)
-        
+        correct_idx = options.index(correct)
+
         return {
             "type": "mcq",
             "question": q_part,
             "options": [f"{chr(65+i)}. {opt}" for i, opt in enumerate(options)],
-            "answer": chr(65 + correct_index),
-            "difficulty": "medium"
+            "answer": chr(65 + correct_idx),
+            "difficulty": "medium",
         }
 
-    def _extract_key_entities(self, text: str) -> List[str]:
+    def _extract_entities(self, text: str) -> List[str]:
         try:
             import nltk
             tokens = nltk.word_tokenize(text)
             pos_tags = nltk.pos_tag(tokens)
-            # Focus on Proper Nouns and Nouns
-            keywords = [word for word, pos in pos_tags if pos in ['NNP', 'NN', 'NNS'] and len(word) > 3]
-            return list(dict.fromkeys(keywords))[:5]
+            return list(dict.fromkeys(
+                w for w, p in pos_tags if p in ('NNP', 'NN', 'NNS') and len(w) > 3
+            ))[:5]
         except Exception:
             return text.split()[:5]
 
-    def _generate_template_questions(self, text: str, count: int) -> List[dict]:
-        entities = self._extract_key_entities(text)
-        if not entities: entities = ["Concept", "Topic"]
-        
-        questions = []
-        for i in range(count):
-            entity = entities[i % len(entities)]
-            questions.append({
+    def _template_questions(self, text: str, count: int) -> List[dict]:
+        entities = self._extract_entities(text) or ["Concept", "Topic"]
+        return [
+            {
                 "type": "short",
-                "question": f"Explain the significance of {entity} in this context.",
-                "answer": f"Details about {entity} can be found in the lecture notes.",
-                "difficulty": "medium"
-            })
-        return questions
+                "question": f"Explain the significance of {entities[i % len(entities)]} in this context.",
+                "answer": f"Details about {entities[i % len(entities)]} can be found in the lecture notes.",
+                "difficulty": "medium",
+            }
+            for i in range(count)
+        ]
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+    def generate_questions(self, text: str, max_questions: int = 5) -> List[dict]:
+        t0 = time.time()
+        try:
+            sentences = [
+                s.strip()
+                for s in re.split(r'(?<=[.!?])\s+', text)
+                if len(s.split()) > 8
+            ]
+            if not sentences:
+                return self._template_questions(text, max_questions)
+
+            questions = []
+
+            # 50% MCQs
+            mcq_count = max(1, max_questions // 2)
+            for i in range(min(mcq_count, len(sentences))):
+                q = self._generate_single(sentences[i % len(sentences)], "mcq")
+                if q:
+                    questions.append(q)
+
+            # Viva questions
+            viva_count = max(1, (max_questions - len(questions)) // 2)
+            for i in range(viva_count):
+                idx = (mcq_count + i) % len(sentences)
+                q = self._generate_single(sentences[idx], "viva")
+                if q:
+                    questions.append(q)
+
+            # Fill remaining with short answers
+            while len(questions) < max_questions and len(questions) < len(sentences):
+                idx = len(questions) % len(sentences)
+                q = self._generate_single(sentences[idx], "short")
+                if q:
+                    questions.append(q)
+
+            # Pad with templates if still short
+            if len(questions) < max_questions:
+                questions.extend(self._template_questions(text, max_questions - len(questions)))
+
+            logger.info(f"Generated {len(questions)} questions in {time.time() - t0:.2f}s")
+            return questions[:max_questions]
+
+        except Exception as e:
+            logger.error(f"Question generation pipeline failed: {e}")
+            return self._template_questions(text, max_questions)

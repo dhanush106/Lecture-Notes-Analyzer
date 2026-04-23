@@ -3,7 +3,13 @@ uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 python-dotenv==1.0.0
 
+# ── PyTorch with CUDA 12.4 support (GTX 1650 / CUDA 12.6 compatible) ──
+# Install manually via:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 torch>=2.0.0
+torchvision
+torchaudio
+
 transformers==4.35.2
 sentence-transformers==2.2.2
 keybert==0.7.0

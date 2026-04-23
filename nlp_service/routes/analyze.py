@@ -83,9 +83,12 @@ async def run_ocr(file: UploadFile = File(...), mode: str = Form("auto")):
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
+    from utils.device import device_manager
     return HealthResponse(
         status="healthy",
         service="nlp-service",
-        version="1.0.0",
-        models_loaded=nlp_orchestrator.is_loaded
+        version="2.0.0",
+        models_loaded=nlp_orchestrator.is_loaded,
+        device=device_manager.device_str,
+        fp16_enabled=device_manager.use_fp16,
     )

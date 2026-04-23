@@ -41,5 +41,7 @@ class OCRResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str = "healthy"
     service: str = "nlp-service"
-    version: str = "1.0.0"
+    version: str = "2.0.0"
     models_loaded: bool = False
+    device: str = "cpu"
+    fp16_enabled: bool = False

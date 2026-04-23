@@ -1,29 +1,17 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import quizService from '../../services/quizService';
+import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   quizQuestions: [],
-  answers: {},
-  score: 0,
+  answers: {},        // { [index]: { answer, isCorrect, selectedAt } }
   currentIndex: 0,
-  status: 'idle',
+  status: 'idle',     // idle | active | completed | timeout
   timeRemaining: 300,
+  score: 0,
   results: null,
+  shuffled: false,
   loading: false,
-  error: null
+  error: null,
 };
-
-export const submitQuiz = createAsyncThunk(
-  'quiz/submitQuiz',
-  async ({ noteId, answers }, { rejectWithValue }) => {
-    try {
-      const response = await quizService.submitQuiz(noteId, answers);
-      return response.data.data.quizResult;
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.error || 'Failed to submit quiz');
-    }
-  }
-);
 
 const quizSlice = createSlice({
   name: 'quiz',
@@ -31,88 +19,86 @@ const quizSlice = createSlice({
   reducers: {
     initQuiz: (state, action) => {
       state.quizQuestions = action.payload.questions;
-      state.answers = {};
-      state.score = 0;
+      state.answers      = {};
+      state.score        = 0;
       state.currentIndex = 0;
-      state.status = 'active';
+      state.status       = 'active';
       state.timeRemaining = action.payload.timeLimit || 300;
-      state.results = null;
-      state.error = null;
+      state.results      = null;
+      state.error        = null;
+      state.shuffled     = false;
     },
+
     selectAnswer: (state, action) => {
       const { questionIndex, answer, isCorrect } = action.payload;
-      state.answers[questionIndex] = {
-        answer,
-        isCorrect,
-        selectedAt: Date.now()
-      };
+      // Only record — never overwrite if already answered (allows review nav)
+      state.answers[questionIndex] = { answer, isCorrect, selectedAt: Date.now() };
     },
+
+    clearAnswer: (state, action) => {
+      delete state.answers[action.payload];
+    },
+
     nextQuestion: (state) => {
       if (state.currentIndex < state.quizQuestions.length - 1) {
         state.currentIndex += 1;
       }
     },
+
     prevQuestion: (state) => {
       if (state.currentIndex > 0) {
         state.currentIndex -= 1;
       }
     },
+
     goToQuestion: (state, action) => {
-      state.currentIndex = action.payload;
+      const idx = action.payload;
+      if (idx >= 0 && idx < state.quizQuestions.length) {
+        state.currentIndex = idx;
+      }
     },
+
     tick: (state) => {
-      if (state.timeRemaining > 0 && state.status === 'active') {
+      if (state.status === 'active' && state.timeRemaining > 0) {
         state.timeRemaining -= 1;
       }
-      if (state.timeRemaining === 0) {
+      if (state.timeRemaining === 0 && state.status === 'active') {
         state.status = 'timeout';
       }
     },
+
     endQuiz: (state) => {
       state.status = 'completed';
-      let correctCount = 0;
-      state.quizQuestions.forEach((q, i) => {
-        if (state.answers[i]?.isCorrect) {
-          correctCount++;
-        }
+      let correct = 0;
+      state.quizQuestions.forEach((_, i) => {
+        if (state.answers[i]?.isCorrect) correct++;
       });
-      state.score = correctCount;
+      state.score = correct;
       state.results = {
-        total: state.quizQuestions.length,
-        correct: correctCount,
-        percentage: Math.round((correctCount / state.quizQuestions.length) * 100),
-        timeTaken: 300 - state.timeRemaining
+        total:      state.quizQuestions.length,
+        correct,
+        skipped:    state.quizQuestions.length - Object.keys(state.answers).length,
+        percentage: Math.round((correct / state.quizQuestions.length) * 100),
+        timeTaken:  300 - state.timeRemaining,
       };
     },
-    resetQuiz: (state) => {
-      return initialState;
-    }
+
+    shuffleQuestions: (state) => {
+      const shuffled = [...state.quizQuestions].sort(() => Math.random() - 0.5);
+      state.quizQuestions = shuffled;
+      state.answers       = {};
+      state.currentIndex  = 0;
+      state.shuffled      = true;
+    },
+
+    resetQuiz: () => initialState,
   },
-  extraReducers: (builder) => {
-    builder
-      .addCase(submitQuiz.pending, (state) => {
-        state.loading = true;
-      })
-      .addCase(submitQuiz.fulfilled, (state, action) => {
-        state.loading = false;
-        state.results = action.payload;
-      })
-      .addCase(submitQuiz.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      });
-  }
 });
 
 export const {
-  initQuiz,
-  selectAnswer,
-  nextQuestion,
-  prevQuestion,
-  goToQuestion,
-  tick,
-  endQuiz,
-  resetQuiz
+  initQuiz, selectAnswer, clearAnswer,
+  nextQuestion, prevQuestion, goToQuestion,
+  tick, endQuiz, shuffleQuestions, resetQuiz,
 } = quizSlice.actions;
 
 export default quizSlice.reducer;

@@ -1,8 +1,18 @@
+"""
+main.py
+--------
+FastAPI entry point with:
+- Startup model pre-warming
+- Improved /health endpoint (returns device info)
+- Structured logging
+"""
+import os
+import time
+import logging
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import logging
-import os
 
 from routes.analyze import router as analyze_router
 
@@ -16,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Lecture Notes NLP Service",
-    description="NLP microservice for text analysis, summarization, and question generation",
-    version="1.0.0"
+    description="GPU-accelerated NLP microservice for summarization, keyword extraction, and quiz generation",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -30,22 +40,33 @@ app.add_middleware(
 
 app.include_router(analyze_router)
 
+
 @app.on_event("startup")
 async def startup_event():
-    import asyncio
     from services.nlp_orchestrator import nlp_orchestrator
-    logger.info("Initializing NLP models on application startup (this may take a moment)...")
+    from utils.device import device_manager
+
+    logger.info("=" * 60)
+    logger.info("NLP Service starting up...")
+    logger.info(f"Device: {device_manager.device_str.upper()}")
+    logger.info(f"FP16 enabled: {device_manager.use_fp16}")
+    logger.info("=" * 60)
+
+    # Load all models in a thread so the event loop doesn't block
     await asyncio.to_thread(nlp_orchestrator.initialize_models)
-    logger.info("NLP Service is fully loaded and ready to accept requests.")
+    logger.info("NLP Service is fully ready ✅")
 
 
 @app.get("/")
 async def root():
+    from utils.device import device_manager
     return {
         "status": "ok",
         "service": "nlp-service",
-        "version": "1.0.0",
-        "docs": "/docs"
+        "version": "2.0.0",
+        "device": device_manager.device_str,
+        "fp16": device_manager.use_fp16,
+        "docs": "/docs",
     }
 
 
@@ -53,10 +74,4 @@ if __name__ == "__main__":
     import uvicorn
     host = os.getenv("API_HOST", "0.0.0.0")
     port = int(os.getenv("API_PORT", 8000))
-    
-    uvicorn.run(
-        "main:app",
-        host=host,
-        port=port,
-        reload=True
-    )
+    uvicorn.run("main:app", host=host, port=port, reload=True)
